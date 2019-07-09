@@ -7,6 +7,7 @@ Created on Thu Jul 21 22:43:48 2016
 #import gdsCAD as gds
 import gdspy as gds
 import numpy as np
+from jobfile_generator import jobfile
 
 def saveCell2GDS(cell, gdsName):
     """ This function save the given cell to GDS file with the name 'gdsName' """
@@ -113,12 +114,14 @@ def createIDT3(period=[1, 3],      # [initial period (um), final periof (um) (> 
             elif np.abs(c) == 3:
                 tempwidth = current_width*3.0 * metal_ratio
                 x += current_width
+                layer = 6
 
             if np.abs(c) == 9:
                 dummy=0 # do nothing
             else:
                 p = gds.PolyPath([(x,y0),(x,y1)],width=tempwidth, layer=layer, datatype=datatype)
                 idt.add(p)
+                layer = 1
               
             # add additional fingers at side    
             if not gap_length == 0:
@@ -193,7 +196,7 @@ def create_IDT_pair(name = 'pair',                      # Name of the cell
     idt = gds.CellReference(idt1[0], origin=(-(distance_in_length+w)/2, 0))
     pair.add(idt)
     pad = gds.CellReference(idt1[1], origin=(-(distance_in_length+w)/2, 0))
-    pair.add(pad)
+#    pair.add(pad)
     
     # Add right IDT
     bounding_box = idt2[0].get_bounding_box()
@@ -203,7 +206,7 @@ def create_IDT_pair(name = 'pair',                      # Name of the cell
     idt = gds.CellReference(idt2[0], origin=((distance_in_length+w)/2, 0))
     pair.add(idt)
     pad = gds.CellReference(idt2[1], origin=((distance_in_length+w)/2, 0), rotation=180, x_reflection=True)
-    pair.add(pad)
+#    pair.add(pad)
     
     # Get layer for pad and inverse GND from idt1
     #   Here we assume the layer number of pad < the layer number of inverse GND.
@@ -211,7 +214,7 @@ def create_IDT_pair(name = 'pair',                      # Name of the cell
 #    layers = pair.get_bounding_box()
     layers = list(idt1[1].get_layers())
     inv_GND_layer = layers[1]
-    pair.add(gds.Rectangle((-distance_in_length/2, -l/2),(distance_in_length/2, l/2),layer=inv_GND_layer, datatype=0))
+#    pair.add(gds.Rectangle((-distance_in_length/2, -l/2),(distance_in_length/2, l/2),layer=inv_GND_layer, datatype=0))
     
     return pattern
 
@@ -226,13 +229,13 @@ def createMarks(nx = 4,
     # Mark for EB
     crmk = gds.Cell('cross', exclude_from_current=True)
     crmk.add(gds.Rectangle((-100,-10),(-10, 10),layer=2, datatype=0))
-    crmk.add(gds.Rectangle((-120, -30),(10, 30),layer=3, datatype=0))
+#    crmk.add(gds.Rectangle((-120, -30),(10, 30),layer=3, datatype=0))
     crmk.add(gds.Rectangle((100,-10),(10,10),layer=2, datatype=0))
-    crmk.add(gds.Rectangle((120,-30),(-10,30),layer=3, datatype=0))
+#    crmk.add(gds.Rectangle((120,-30),(-10,30),layer=3, datatype=0))
     crmk.add(gds.Rectangle((-10,-100),(10,-10),layer=2, datatype=0))
-    crmk.add(gds.Rectangle((-30,-120),(30, 10),layer=3, datatype=0))
+#    crmk.add(gds.Rectangle((-30,-120),(30, 10),layer=3, datatype=0))
     crmk.add(gds.Rectangle((-10,100),(10,10),layer=2, datatype=0))
-    crmk.add(gds.Rectangle((-30,120),(30,-10),layer=3, datatype=0))
+#    crmk.add(gds.Rectangle((-30,120),(30,-10),layer=3, datatype=0))
     crmk.add(gds.Rectangle((-4,0),(0,1),layer=2, datatype=0))
     crmk.add(gds.Rectangle((-1,1),(0,4),layer=2, datatype=0))
     crmk.add(gds.Rectangle((4,0),(0,-1),layer=2, datatype=0))
@@ -294,7 +297,7 @@ def idt_20190407():
               [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,2,2,1,1,1,1],
               [0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.5,0.5,0.75,0.75],
               [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1,1,2,2,2,2],
-              [0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,1,1,2,2]
+              [2.0,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75,1,1,2,2]
             ]) #[um]
     
     total_periods = np.array( [ 
@@ -318,10 +321,36 @@ def idt_20190407():
               [30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30]
             ]) #[um]
     
+        # -- set jobfile content
+    filename = 'GuttelJobfile_DoseTest2'
+    path_to_save = 'C:/Users/manip.batm/Desktop/IDTs/Design'
+    f = jobfile()
+    f.addline('# run nbwrite Takada_Shintaro/Junliang/20190705/GuttelJobfile_0 -1=shintaro:g1  -2=shintaro:g2'.format(filename,path_to_save))
+    f.addcl()
+
+    # -- global block
+    f.addline('.global')
+    f.addel()
+    f.addline(['registration',(0,0),(7600*1e3,0)]) #bottom left and bottom right marks
+    f.addline(['marktype','car8tmf'])
+    f.addline(['focus','auto'])
+    f.addel()
+    f.addline('.end')
+    f.addel()
+    
+    # -- block default
+    f.addcl() 
+    f.addline('.block_default')
+    f.addel()
+    f.addline(['base_dose', 1.0])
+    f.addel()
+    f.addline('.end')
+    f.addel()
     
     # define IDTs
     count = 0
     for i in range(nx):
+        vertical_block_count = -1
         for j in range(ny):
             xc = dx/2+i*dx
             yc = dy/2+j*dy
@@ -378,9 +407,91 @@ def idt_20190407():
             pattern += pair
             idt1 = gds.CellReference(pair[0], origin=(xc, yc))
             top.add(idt1)
-            print('The center position of the (%d,%d) pair cell is (xc=%d,yc=%d)' %(i,j,xc,yc) )
-            print('The center position of the first IDT in the pair is (%d,%d)' %(xc-idt_distance*saw_velocity/2-total_periods[i,j]*wavelengths[i,j]/2,yc))
-            print('The center position of the second IDT in the pair is (%d,%d)' %(xc+idt_distance*saw_velocity/2+total_period2*wavelengths[i,j]/2,yc))
+#            print('The center position of the (%d,%d) pair cell is (xc=%d,yc=%d)' %(i,j,xc,yc) )
+#            print('The center position of the first IDT in the pair is (%d,%d)' %(xc-idt_distance*saw_velocity/2-total_periods[i,j]*wavelengths[i,j]/2,yc))
+#            print('The center position of the second IDT in the pair is (%d,%d)' %(xc+idt_distance*saw_velocity/2+total_period2*wavelengths[i,j]/2,yc))
+    
+                #Block starters code
+            block_starts = [0,5,8,11,15]
+            block_ends = [4,7,10,14,15]
+            x_file_origin = -3800
+            y_file_origin = -4000
+            if j in block_starts:
+                vertical_block_count += 1
+                x_origin =  x_file_origin + i*2000
+                y_origin =  y_file_origin + vertical_block_count*2000
+                f.addline('#'+'-'*30+'Block ('+str(i)+','+str(vertical_block_count)+')'+'-'*30)
+                f.addline('.block')
+                f.addline(['origin',((x_origin-x_file_origin)*1e3,(y_origin-y_file_origin)*1e3)])
+                f.addline(['registration',(0.0, 0.0),(1600*1e3, 0.0)])
+                f.addline(['marktype','car8tmf'])
+                f.addline(['focus','auto'])
+                f.addline(['base_dose',1.0])
+                f.addel()
+            
+            #id's for IDT patterns
+            xc_idt1 = (xc-idt_distance*saw_velocity/2-total_periods[i,j]*wavelengths[i,j]/2) #x position of the first IDT in the pair
+            xc_idt2 = (xc+idt_distance*saw_velocity/2+total_period2*wavelengths[i,j]/2) #x position of the second IDT in the pair
+            
+            if types1[i,j] == 2:
+                pattern_1 = 'double'
+            elif types1[i,j] == 10:
+                pattern_1 = 'DART'
+            elif types1[i,j] == 11:
+                pattern_1 = 'iDART'
+                
+            if types2[i,j] == 2:
+                pattern_2 = 'double'
+            elif types2[i,j] == 10:
+                pattern_2 = 'DART'
+            elif types2[i,j] == 11:
+                pattern_2 = 'iDART'
+                
+            f.addline(['pattern',pattern_1+'_'+str(int(wavelengths[i,j]*1e3)).zfill(4)+'_'+str(total_periods[i,j]),((xc_idt1-x_origin)*1e3,(yc-y_origin)*1e3)])
+            f.addline(['pattern',pattern_2+'_'+str(int(wavelengths[i,j]*1e3)).zfill(4)+'_'+str(total_periods[i,j]),((xc_idt2-x_origin)*1e3,(yc-y_origin)*1e3)])
+            
+            #Block enders code
+            if j in block_ends:
+                f.addel()
+                f.addline('.end')
+            
+            
+    #Pattern Section
+    doses = np.array( [
+                        [[1,1,1],[1,1,1],[1,1,1],[1,1,1]], #double IDT doses, 4 different wavelengths. 
+                        [[1,1,1],[1,1,1],[1,1,1],[1,1,1]], #DART IDT doses, 4 different wavelengths.
+                        [[1,1,1],[1,1,1],[1,1,1],[1,1,1]] #iDART IDT doses (same as DART)
+                        ], dtype= np.float64) #Number of periods - transmitter
+    
+    for k,pattern_1 in enumerate(['double','DART','iDART']):
+        for i,wavelength in enumerate([0.5,0.75,1.0,2.0]):
+            for j,total_period in enumerate([90,110,130]):
+                if (pattern_1 == 'iDART' and (wavelength in [0.5,0.75] or total_period == 130)):
+                    continue
+                f.addcl()
+                f.addline('.pattern')
+                f.addline(['id',pattern_1+'_'+str(int(wavelength*1e3)).zfill(4)+'_'+str(total_period)])
+                f.addline(['filename', 'shintaro/Junliang/20190705/'+pattern_1+'_'+str(int(wavelength*1e3)).zfill(4)+'_'+str(total_period)+'.npf'])
+                f.addline(['dose', str(1), doses[k,i,j]])
+                f.addel()
+                f.addline('.end')
+        
+                
+            
+    # -- end of file
+    f.addcl()
+    f.addline('.write')
+    f.addline('current\tauto')
+    f.addline('.write')
+    
+    # -- preview
+    f.generatepreview()
+#    print(f)
+
+    # -- save file
+    if True:
+        f.generatefile(filename,path_to_save)  
+    
     # GND plane before boolean
 #    top.add(gds.Rectangle((-dx*nx/2-space, -dy*ny/2-space),(dx*nx/2+space, dy*ny/2+space), layer=4, datatype=0))
     top.add(gds.Rectangle((0, 0),(2000, 2000), layer=4, datatype=0))
@@ -399,7 +510,7 @@ def idt_20190407():
     pattern.append(crmk)
     top.add(mkar)
     
-    saveCell2GDS(pattern, 'idt_DoseTest')
+    saveCell2GDS(pattern, 'idt_DoseTest_2')
     
 if __name__=='__main__':
 #    saveCell2GDS(createIDT2(), 'didt125')

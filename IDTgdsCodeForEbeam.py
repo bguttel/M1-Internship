@@ -8,6 +8,7 @@ Created on Thu Jul 21 22:43:48 2016
 import gdspy as gds
 import math
 import numpy as np
+from jobfile_generator import jobfile
 
 def saveCell2GDS(cell, gdsName):
     """ This function save the given cell to GDS file with the name 'gdsName' """
@@ -325,10 +326,36 @@ def idt_20190407():
               [30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30]
             ]) #[um]
     
+    # -- set jobfile content
+    filename = 'GuttelJobfile'
+    path_to_save = 'C:/Users/manip.batm/Desktop/IDTs/Design'
+    f = jobfile()
+    f.addline('# run nbwrite Takada_Shintaro/Junliang/20190705/GuttelJobfile_0 -1=shintaro:g1  -2=shintaro:g2'.format(filename,path_to_save))
+    f.addcl()
+
+    # -- global block
+    f.addline('.global')
+    f.addel()
+    f.addline(['registration',(0,0),(7600*1e3,0)]) #bottom left and bottom right marks
+    f.addline(['marktype','car8tmf'])
+    f.addline(['focus','auto'])
+    f.addel()
+    f.addline('.end')
+    f.addel()
+    
+    # -- block default
+    f.addcl() 
+    f.addline('.block_default')
+    f.addel()
+    f.addline(['base_dose', 1.0])
+    f.addel()
+    f.addline('.end')
+    f.addel()
     
     # define IDTs
     count = 0
     for i in range(nx):
+        vertical_block_count = -1
         for j in range(ny):
             xc = dx/2*(1-nx)+i*dx
             yc = dy/2*(1-ny)+j*dy
@@ -379,15 +406,98 @@ def idt_20190407():
                               idt2 = idt2,            # Right IDT
                               detector = None,                # Detector IDT (Not created if None)
                               distance = idt_distance,                 # [ns]
-                              saw_velocity = saw_velocity,           # [um/ns] SAW velocity
+                               saw_velocity = saw_velocity,           # [um/ns] SAW velocity
                               )
             # Add idt cell to pattern list
             pattern += pair
             idt1 = gds.CellReference(pair[0], origin=(xc, yc))
             top.add(idt1)
-            print('The center position of the (%d,%d) pair cell is (xc=%d,yc=%d)' %(i,j,xc,yc) )
-            print('The center position of the first IDT in the pair is (%d,%d)' %(xc-idt_distance*saw_velocity/2-total_periods[i,j]*wavelengths[i,j]/2,yc))
-            print('The center position of the second IDT in the pair is (%d,%d)' %(xc+idt_distance*saw_velocity/2+total_period2*wavelengths[i,j]/2,yc))
+            
+#            print('The center position of the (%d,%d) pair cell is (xc=%d,yc=%d)' %(i,j,xc,yc) )
+#            print('The center position of the first IDT in the pair is (%d,%d)' %(xc-idt_distance*saw_velocity/2-total_periods[i,j]*wavelengths[i,j]/2,yc))
+#            print('The center position of the second IDT in the pair is (%d,%d)' %(xc+idt_distance*saw_velocity/2+total_period2*wavelengths[i,j]/2,yc))
+            
+            #Block starters code
+            block_starts = [0,5,8,11,15]
+            block_ends = [4,7,10,14,15]
+            x_file_origin = -3800
+            y_file_origin = -4000
+            if j in block_starts:
+                vertical_block_count += 1
+                x_origin =  x_file_origin + i*2000
+                y_origin =  y_file_origin + vertical_block_count*2000
+                f.addline('#'+'-'*30+'Block ('+str(i)+','+str(vertical_block_count)+')'+'-'*30)
+                f.addline('.block')
+                f.addline(['origin',((x_origin-x_file_origin)*1e3,(y_origin-y_file_origin)*1e3)])
+                f.addline(['registration',(0.0, 0.0),(1600*1e3, 0.0)])
+                f.addline(['marktype','car8tmf'])
+                f.addline(['focus','auto'])
+                f.addline(['base_dose',1.0])
+                f.addel()
+            
+            #id's for IDT patterns
+            xc_idt1 = (xc-idt_distance*saw_velocity/2-total_periods[i,j]*wavelengths[i,j]/2) #x position of the first IDT in the pair
+            xc_idt2 = (xc+idt_distance*saw_velocity/2+total_period2*wavelengths[i,j]/2) #x position of the second IDT in the pair
+            
+            if types1[i,j] == 2:
+                pattern_1 = 'double'
+            elif types1[i,j] == 10:
+                pattern_1 = 'DART'
+            elif types1[i,j] == 11:
+                pattern_1 = 'iDART'
+                
+            if types2[i,j] == 2:
+                pattern_2 = 'double'
+            elif types2[i,j] == 10:
+                pattern_2 = 'DART'
+            elif types2[i,j] == 11:
+                pattern_2 = 'iDART'
+                
+            f.addline(['pattern',pattern_1+'_'+str(int(wavelengths[i,j]*1e3)).zfill(4)+'_'+str(total_periods[i,j]),((xc_idt1-x_origin)*1e3,(yc-y_origin)*1e3)])
+            f.addline(['pattern',pattern_2+'_'+str(int(wavelengths[i,j]*1e3)).zfill(4)+'_'+str(total_periods[i,j]),((xc_idt2-x_origin)*1e3,(yc-y_origin)*1e3)])
+            
+            #Block enders code
+            if j in block_ends:
+                f.addel()
+                f.addline('.end')
+            
+            
+    #Pattern Section
+    doses = np.array( [
+                        [[1,1,1],[1,1,1],[1,1,1],[1,1,1]], #double IDT doses, 4 different wavelengths. 
+                        [[1,1,1],[1,1,1],[1,1,1],[1,1,1]], #DART IDT doses, 4 different wavelengths.
+                        [[1,1,1],[1,1,1],[1,1,1],[1,1,1]] #iDART IDT doses (same as DART)
+                        ], dtype= np.float64) #Number of periods - transmitter
+    
+    for k,pattern_1 in enumerate(['double','DART','iDART']):
+        for i,wavelength in enumerate([0.5,0.75,1.0,2.0]):
+            for j,total_period in enumerate([90,110,130]):
+                if (pattern_1 == 'iDART' and (wavelength in [0.5,0.75] or total_period == 130)):
+                    continue
+                f.addcl()
+                f.addline('.pattern')
+                f.addline(['id',pattern_1+'_'+str(int(wavelength*1e3)).zfill(4)+'_'+str(total_period)])
+                f.addline(['filename', 'shintaro/Junliang/20190705/'+pattern_1+'_'+str(int(wavelength*1e3)).zfill(4)+'_'+str(total_period)+'.npf'])
+                f.addline(['dose', str(1), doses[k,i,j]])
+                f.addel()
+                f.addline('.end')
+        
+                
+            
+    # -- end of file
+    f.addcl()
+    f.addline('.write')
+    f.addline('current\tauto')
+    f.addline('.write')
+    
+    # -- preview
+    f.generatepreview()
+#    print(f)
+
+    # -- save file
+    if True:
+        f.generatefile(filename,path_to_save)       
+            
     # GND plane before boolean
 #    top.add(gds.Rectangle((-dx*nx/2-space, -dy*ny/2-space),(dx*nx/2+space, dy*ny/2+space), layer=4, datatype=0))
     top.add(gds.Rectangle((-dx*nx/2-space, -dy*ny/2-space+800),(dx*nx/2+space, dy*ny/2+space-800), layer=4, datatype=0))
@@ -407,6 +517,12 @@ def idt_20190407():
     top.add(mkar)
     
     saveCell2GDS(pattern, 'idt_20190407c')
+    
+
+     
+
+    
+    
     
 if __name__=='__main__':
 #    saveCell2GDS(createIDT2(), 'didt125')
